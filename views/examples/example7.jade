@@ -1,84 +1,73 @@
 extends ../layout
 block scripts
-    script(src="/javascripts/closures.js")
+    script(src="/javascripts/nodeleak2.js")
 block content
-    h1 #{title}: Eval is evil (almost always)
-    p Let's analyze the impact of closures on memory
-    p You can see that 'eval' retains a reference on all the variables of the closure.
+    h1 #{title}: DOM leaks bigger than expected
     ol
-        li Start the creation of new closures
-        li Take a heap snapshot
-        li Find the closures (named lC, sC and eC)
-    p: button(onclick="largeClosures()") Closures mantain hold on large string
-    p: button(onclick="smallClosures()") Closures mantain hold only on small strings
-    p: button(onclick="evalClosures()") Closures with eval
-    p: button(onclick="stopAndClear()") Stop and clear
+        li Start memory profiling. Watch node count.
+        li Create a subtree of dom nodes and save a reference to a leaf and subtree route
+        li Detach tree
+        li Watch the detached node count
+        li Remove tree reference
+        li Watch the detached node count
+        li Remove leaf reference
+        li Watch the detached node count
+    p
+        button(onclick="createTree()") Create tree
+    p
+        button(onclick="detachTree()") Detach tree
+    p
+        button(onclick="removeTreeReference()") Remove tree reference
+    p
+        button(onclick="removeLeafReference()") Remove leaf reference
 
     hr
     pre.
         'use strict';
 
-        var intervalId,
-            closures = [];
+        var leakedNodes = [], parentDiv, leaf, counter = 0;
 
-        function createLargeClosure() {
-            var largeStr = new Array(1000000).join('x');
-            return function lC() {
-                return largeStr;
-            };
+        function createLeaf() {
+            counter++;
+            var div = document.createElement("div");
+            div.appendChild(document.createTextNode("Leaf  " + counter));
+            div.someText = (new Array(1E6).join("x"));
+            return div;
         }
 
-        function createSmallClosure() {
-            var smallStr = 'x';
-            var largeStr = new Array(1000000).join('x');
-            return function sC() {
-                return smallStr;
-            };
+        function createBranch(number) {
+            var div = document.createElement("div");
+            createNodesAndReturnLastLeaf(div, number - 1);
+            return div;
         }
 
-        function createEvalClosure() {
-            var smallStr = 'x';
-            var largeStr = new Array(1000000).join('x');
-            return function eC() {
-                eval('');
-                return smallStr;
-            };
-        }
-
-        function largeClosures() {
-            stopInterval();
-            intervalId = setInterval(function () {
-                closures.push(createLargeClosure());
-            }, 1000);
-        }
-
-        function smallClosures() {
-            stopInterval();
-                intervalId = setInterval(function () {
-                closures.push(createSmallClosure());
-            }, 1000);
-
-        }
-
-        function evalClosures() {
-            stopInterval();
-            intervalId = setInterval(function () {
-                closures.push(createEvalClosure());
-            }, 1000);
-        }
-
-        function stopInterval() {
-            if (intervalId) {
-                clearInterval(intervalId);
+        function createNodesAndReturnLastLeaf(parentDiv, number) {
+            var i, lastLeaf;
+            for (i = 0; i < number; i++) {
+                parentDiv.appendChild(createBranch(number));
             }
-            intervalId = null;
+            for (i = 0; i < number; i++) {
+                parentDiv.appendChild(lastLeaf = createLeaf(number, i));
+            }
+            return lastLeaf;
         }
 
-        function clear() {
-            closures.length = 0;
+
+
+        function createTree() {
+            parentDiv = document.createElement("div");
+            leaf = createNodesAndReturnLastLeaf(parentDiv, 4);
+            document.body.appendChild(parentDiv);
         }
 
-        function stopAndClear(){
-            stopInterval();
-            clear();
+        function detachTree() {
+            document.body.removeChild(parentDiv);
+        }
+
+        function removeTreeReference() {
+            parentDiv = null;
+        }
+
+        function removeLeafReference() {
+            leaf = null;
         }
